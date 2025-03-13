@@ -1,0 +1,9 @@
+build/
+archive/
+venv/
+__pycache__/
+dist/
+latest_issues
+main.spec
+requirements.txt
+client.spec
