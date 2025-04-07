@@ -1,24 +1,17 @@
 import queue
-import asyncio
-import aioconsole
 
 class Terminal():
-    def __init__(self):
-        print("Hello?")
-        self.send_queue = queue.Queue()
+    def __init__(self, outbox):
+        self.outbox = outbox
 
-    async def start(self): 
-        print("start Hello?")
-        asyncio.create_task(self.feed())
-        print("start Hello? 2")
-    async def feed(self):
+    def start(self): 
         while True:
             try:
-                print("Feed loop.")
-                message = await aioconsole.ainput("You: ")
-                self.send_queue.put(message)
-                print("Added to queue")
+                message = input("You: ") # For some reaosn this is dominating the main thread despite being ran on new thread..
+                self.outbox.put(message)
+                print("Added to queue!")
             except Exception as e:
                 print(f"Error at terminal feed: {e}")
+
 
 

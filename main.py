@@ -4,6 +4,7 @@ import asyncio
 import threading 
 import os
 import terminal as tty
+import queue
 
 IS_WINDOWS = os.name == "nt"
 IS_POSIX  = os.name == "posix"
@@ -11,24 +12,37 @@ IS_POSIX  = os.name == "posix"
 if IS_WINDOWS:
     import gui
 
-async def main():
+def app():
+    asyncio.run(connect()) 
+
+async def connect():
     print(f"Starting garage on {os.name}")
     # Connect
     client = cli.Client()
 
     try:  
+        print("Connecting..")
         await client.connect(("194.164.199.39", 7719))
+        print("Getting password..")
         password = client.get_password()
-        
+        print("Authenticating..")
         if await client.authenticate(password):
+
+            asyncio.create_task(client.outbox_checker())
+            # asyncio.create_task(client.receive_messages())
+
+            send_queue = queue.Queue()
+            client.outbox = send_queue
+
             if IS_POSIX:
-                await tty.Terminal().start()
-                print("Started TERMINAL.")
+                terminal = tty.Terminal(send_queue)
+                threading.Thread(target=terminal.start).start()
             elif IS_WINDOWS:
-                await tty.Terminal().start()
-                # threading.Thread(target=start_gui, args=(client,)).start()
-                # print("Started GUI.")
-        
+                terminal = tty.Terminal(send_queue)
+                threading.Thread(target=terminal.start).start()
+            
+
+
         while True: # Keep program alive
             await asyncio.sleep(1)
     except Exception as e:
@@ -40,7 +54,7 @@ def start_gui(client):
     app.mainloop()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    threading.Thread(target=app).start()
 
 
 

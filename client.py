@@ -25,11 +25,11 @@ class Client():
         self.connection_info = None
         self.terminal = None
         self.gui = None
-        self.send_queue = queue.Queue()
+        self.outbox = None
 
         # Catching exit signals
-        signal.signal(signal.SIGINT, lambda sig, frame: self.close(sig, frame))
-        signal.signal(signal.SIGTERM, lambda sig, frame: self.close(sig, frame))
+        # signal.signal(signal.SIGINT, lambda sig, frame: self.close(sig, frame))
+        # signal.signal(signal.SIGTERM, lambda sig, frame: self.close(sig, frame))
 
         # Set up queue for handling data across threads
         self.recv_queue = queue.Queue()
@@ -110,10 +110,6 @@ class Client():
             print(f"Error decrypting session key: {e}")
         
         self.session_key = decrypted_session_key
-        # threading.Thread(target=self.receive_messages).start()
-        # Start receiving messages
-        asyncio.create_task(self.receive_messages())
-        asyncio.create_task(self.outbox_checker())
         
         return decrypted_session_key
 
@@ -150,8 +146,8 @@ class Client():
         buffer_size = 1024
         cipher_suite = Fernet(self.session_key)
         # message = b''
-        print(" receive_messages has been called")
         while True:
+            print(" receive_messages has been called")
             try:
                 # Receive encrypted length header
                 encrypted_header = await reader.read(100)  # Fernet 
@@ -201,11 +197,11 @@ class Client():
     async def outbox_checker(self):
         writer = self.writer
         while True:
-            msg = await self.send_queue.get()
-            if msg is None:
+            print("Outbox checker!")
+            msg = self.outbox.get()
+            if msg is queue.Empty:
                 break
             await self.send_message(msg)
-            await asyncio.sleep(1)
     
     def close(self, sig=None, frame=None):
         print(f"RECEIVED {sig} {frame}")
