@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import hashes
 import os
 import base64
 import asyncio
-
+from time import time
 
 # List to store all connected clients
 clients = {}
@@ -22,11 +22,12 @@ async def handle_client(reader, writer):
     # When a client sends a message, relay it to other clients
     while True:
         try:
-            print("Handle client has been called")
+            print(f"Handle client has been called at {time()}")
 
             if reader is None: 
                 break # Shutdown signal
             message = await asyncio.wait_for(reader.read(1024), timeout = None)
+
             if not message: # Empty message, client disconnected
                 clients.pop(client_address, None)
                 print(f"Connection from {client_address} abruptly closed.")
@@ -38,7 +39,7 @@ async def handle_client(reader, writer):
                 print(f"[got-msg] {client_address} {message}")
                 print("[@got-msg]clients list:")
                 print(clients)
-                print("----")                
+                print("--------------------------")                
                 if message == b".exit":
                     clients.pop(client_address, None)
                     print(f"Connection from {client_address} gracefully closed.")
@@ -56,7 +57,7 @@ async def handle_client(reader, writer):
                         try:
                             #bytes_sent = client_info["socket"].send(message)
                             bytes_sent = client_info["sock_writer"].write(message)
-                            print(f"[relay-msg] Sent to {addr} from {client_address}: {message}")
+                            print(f"[relay-msg] Sent bytes to {addr} from {client_address}: {message}")
                         except OSError as e:
                             if e.errno == 9: # Bad file descriptor
                                 print(f"Bad socket descriptor:\n{clients[addr]}")

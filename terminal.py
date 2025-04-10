@@ -4,7 +4,7 @@ class Terminal():
     def __init__(self, outbox):
         self.outbox = outbox
 
-    def start(self): 
+    def terminal_chat(self): 
         while True:
             try:
                 message = input("You: ") # For some reaosn this is dominating the main thread despite being ran on new thread..

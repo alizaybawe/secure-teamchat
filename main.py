@@ -29,22 +29,21 @@ async def connect():
         if await client.authenticate(password):
 
             asyncio.create_task(client.outbox_checker())
-            # asyncio.create_task(client.receive_messages())
+            
+            asyncio.create_task(client.receive_messages())
 
             send_queue = queue.Queue()
             client.outbox = send_queue
 
             if IS_POSIX:
                 terminal = tty.Terminal(send_queue)
-                threading.Thread(target=terminal.start).start()
+                threading.Thread(target=terminal.terminal_chat).start()
             elif IS_WINDOWS:
                 terminal = tty.Terminal(send_queue)
-                threading.Thread(target=terminal.start).start()
-            
-
+                threading.Thread(target=terminal.terminal_chat).start()
 
         while True: # Keep program alive
-            await asyncio.sleep(1)
+            await asyncio.sleep(0)
     except Exception as e:
         print(f"Error in establishing client connection: {e}")
         client.close()

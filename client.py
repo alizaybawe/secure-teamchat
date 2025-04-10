@@ -1,5 +1,4 @@
 import socket
-import threading
 from cryptography.fernet import Fernet 
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
@@ -7,11 +6,10 @@ import os
 import base64
 import getpass
 import sys
-import signal
 import queue
 import asyncio
 import terminal as tty
-
+from time import time
 
 
 class Client():
@@ -131,15 +129,17 @@ class Client():
             if message == ".exit": # End connection 
                 self.close()
                 print("Disconnected.") 
+                # Add a graceful closing function
             else: # Send messages
                 print("Encrypting message before sending.")
                 encrypted_header, encrypted_message = self.encrypt(message)
+    
                 writer.write(encrypted_header)
                 writer.write(encrypted_message)
 
                 # Send the encrypted message and its header
                 await writer.drain()
-                print(f"Transmitted encrypted message: {encrypted_message}")
+                print(f"Transmitted encrypted message: {encrypted_message} at {time()}")
 
     async def receive_messages(self):
         reader = self.reader
@@ -147,7 +147,7 @@ class Client():
         cipher_suite = Fernet(self.session_key)
         # message = b''
         while True:
-            print(" receive_messages has been called")
+            print("receive_messages has been called")
             try:
                 # Receive encrypted length header
                 encrypted_header = await reader.read(100)  # Fernet 
@@ -192,17 +192,24 @@ class Client():
             except Exception as e: 
                     print(f"Error receiving message: {e}")
                     break
-        print("Receive messages finished.")
+            # Yield control to other tasks
+            print("Receive messages finished. Yielding control.")
+            await asyncio.sleep(0)
+            
+        
 
     async def outbox_checker(self):
-        writer = self.writer
         while True:
-            print("Outbox checker!")
-            msg = self.outbox.get()
-            if msg is queue.Empty:
-                break
-            await self.send_message(msg)
-    
+            try: 
+                msg = self.outbox.get(block=False)
+            except queue.Empty: 
+                await asyncio.sleep(0)
+                continue
+
+            asyncio.create_task(self.send_message(msg))
+            await asyncio.sleep(0)
+
+
     def close(self, sig=None, frame=None):
         print(f"RECEIVED {sig} {frame}")
         if self.socket:
