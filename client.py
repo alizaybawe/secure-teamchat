@@ -24,13 +24,13 @@ class Client():
         self.terminal = None
         self.gui = None
         self.outbox = None
+        self.inbox = None
+        self.username = None
 
         # Catching exit signals
         # signal.signal(signal.SIGINT, lambda sig, frame: self.close(sig, frame))
         # signal.signal(signal.SIGTERM, lambda sig, frame: self.close(sig, frame))
 
-        # Set up queue for handling data across threads
-        self.recv_queue = queue.Queue()
 
 
     async def connect(self, connection_info):
@@ -125,12 +125,15 @@ class Client():
         writer = self.writer
         msg_size = len(message)
         msg_size_bytes = msg_size.to_bytes(4, byteorder="big")
+        # Message is not empty
         if msg_size > 0:     
-            if message == ".exit": # End connection 
-                self.close()
-                print("Disconnected.") 
-                # Add a graceful closing function
-            else: # Send messages
+
+            # Player is sending a command
+            if self.is_command(message):
+                await self.send_command(message)
+
+            # Player is sending a normal message that needs to be relayed
+            else:
                 print("Encrypting message before sending.")
                 encrypted_header, encrypted_message = self.encrypt(message)
     
@@ -147,7 +150,7 @@ class Client():
         cipher_suite = Fernet(self.session_key)
         # message = b''
         while True:
-            print("receive_messages has been called")
+            print("receive_messages loop has started.")
             try:
                 # Receive encrypted length header
                 encrypted_header = await reader.read(100)  # Fernet 
@@ -183,9 +186,8 @@ class Client():
                     print("\nOther Person:", decrypted_message.decode('utf-8'))
 
                     # Queue up data for handling by tty or gui
-                    self.recv_queue.put(decrypted_message)
+                    self.inbox.put(decrypted_message)
                     
-                    print(self.recv_queue)
                 except Exception as e:
                     print(f"Error at decryption: {e}")
 
@@ -196,7 +198,6 @@ class Client():
             print("Receive messages finished. Yielding control.")
             await asyncio.sleep(0)
             
-        
 
     async def outbox_checker(self):
         while True:
@@ -209,8 +210,24 @@ class Client():
             asyncio.create_task(self.send_message(msg))
             await asyncio.sleep(0)
 
+    def is_command(self, cmd):
+        if cmd[0:1] == b"." or cmd[0] == ".": 
+            return True
+        else:
+            return False
+    async def send_command(self, cmd): # Send plain unencrypted commands
+        writer = self.writer
+        if cmd == b".exit":
+            self.close()
+        else:
+            writer.write(cmd.encode())
 
-    def close(self, sig=None, frame=None):
+    async def heartbeat(self):
+        while True:
+            await self.send_command(".update")
+            await asyncio.sleep(25)
+
+    async def close(self, sig=None, frame=None):
         print(f"RECEIVED {sig} {frame}")
         if self.socket:
             self.writer.write(".exit".encode())

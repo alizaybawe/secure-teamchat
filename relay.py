@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import hashes
 import os
 import base64
 import asyncio
-from time import time
+import time
 
 # List to store all connected clients
 clients = {}
@@ -22,7 +22,7 @@ async def handle_client(reader, writer):
     # When a client sends a message, relay it to other clients
     while True:
         try:
-            print(f"Handle client has been called at {time()}")
+
 
             if reader is None: 
                 break # Shutdown signal
@@ -36,17 +36,25 @@ async def handle_client(reader, writer):
                 break
 
             if message:
-                print(f"[got-msg] {client_address} {message}")
-                print("[@got-msg]clients list:")
-                print(clients)
-                print("--------------------------")                
+                print(f"[got-msg] {client_address} {message} at {int(time.time())} for {client_address}")
+
+                print("--------------------------")
+                if message == b".update":
+                    clients[client_address]["last-communication"] = int(time.monotonic())
+                    print(f"User heartbeat: {client_address}")
+                if message == b".clients":
+                    print("Displaying current clients list:")
+                    print(clients)         
                 if message == b".exit":
                     clients.pop(client_address, None)
                     print(f"Connection from {client_address} gracefully closed.")
                     writer.close()
                     await writer.wait_closed()     
                     print(f"Received exit from {client_address}")
+                    clients[client_address]["last-communication"] = int(time.monotonic())
+                    clients[client_address]["connection-status"] = False
                     break
+
 
                 for addr, client_info in clients.items():
                     #if addr != addr and not client_info["socket"]._closed:
@@ -56,8 +64,12 @@ async def handle_client(reader, writer):
                         print("----")
                         try:
                             #bytes_sent = client_info["socket"].send(message)
-                            bytes_sent = client_info["sock_writer"].write(message)
-                            print(f"[relay-msg] Sent bytes to {addr} from {client_address}: {message}")
+                            if clients[client_address]["authenticated"] == True:
+                                bytes_sent = client_info["sock_writer"].write(message)
+                                print(f"[relay-msg] Sent bytes to {addr} from {client_address}: {message}")
+                                clients[client_address]["last-communication"] = int(time.monotonic())
+                            else:
+                                raise Exception("cannot relay for unauthenticated client: {client_address}")
                         except OSError as e:
                             if e.errno == 9: # Bad file descriptor
                                 print(f"Bad socket descriptor:\n{clients[addr]}")
@@ -146,6 +158,8 @@ async def authenticate_client(reader, writer):
             await writer.drain()
             print(f"Transmitted encrypted session key: {encrypted_session_key}")
 
+            # Client is authorized
+            clients[addr]["authenticated"] = True
             return True
             
 
@@ -185,12 +199,18 @@ async def start_server():
         clients[addr] = {
             "sock_writer": writer,
             "sock_reader": reader,
-            "session-key": session_key
+            "session-key": session_key,
+            "last-communication": time.monotonic(),
+            "connection-status": True,
+            "authenticated": False
         }
 
         task = asyncio.create_task(authenticate_client(reader, writer))
         task.add_done_callback(lambda t: asyncio.create_task(handle_client(reader, writer)))
 
+# async def get_online_users():
+#     for addr, client_info in clients.items():
+        
 
 if __name__ == "__main__":
     asyncio.run(start_server())

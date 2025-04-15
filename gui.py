@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import PhotoImage
 import os
 import sys
-import client
 import queue
 # from tkinter import messagebox
 # from relay import start_server
@@ -15,8 +14,11 @@ class AppWindow(tk.Tk):
         else:
             icon_path = './icon.ico'
         
-        # Load client object
         self.client = client
+        # queue.Queues for data communication
+        self.outbox = self.client.outbox
+        self.inbox = self.client.inbox
+
         # Main settings
         background_color = "#121212"
         background_lighter_color = "#1E1E1E"
@@ -69,25 +71,44 @@ class AppWindow(tk.Tk):
         send_button = tk.Button(bottom_frame, text="Upload file", bg="black", fg="white", font=("Arial", 12))
         send_button.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-    def load_incoming_data(self):
+    def receive_data(self):
         try:
-            data = self.client.recv_queue.get_nowait()
+            data = self.inbox.get_nowait()
             print(f"GOT DATA {data}")
-            self.chatbox.config(state=tk.NORMAL)  # Enable text widget
-            self.chatbox.insert(tk.END, data + b"\n")  # Insert message at the end
-            self.chatbox.see(tk.END)  # Auto-scroll to the latest message
-            self.chatbox.config(state=tk.DISABLED)  # Disable editing again
+            self.sendto_chatbox(data)
+
         except queue.Empty:
             pass
-        self.after(100, self.load_incoming_data)
+        self.after(100, self.receive_data)
 
     def send_message(self, event, msgbox):
         msg = msgbox.get("1.0", tk.END).strip()
         if msg:
-            self.client.send_queue.put(msg)
-        print(f"Inserted message in send_message queue: {msg}")
-        # await self.client.send_message(msg)
-        # Send via client.py
+
+            # Schedule for sending
+            self.outbox.put(msg)
+            print(f"Added message to outbox queue: {msg}\n")
+
+            # Erase input box
+            msgbox.delete("1.0", tk.END)
+            msgbox.mark_set("insert", "1.0")
+            msgbox.focus()
+            
+            # Display in chatbox
+            formatted_message = self.format_message(msg.encode())
+            self.sendto_chatbox(formatted_message)
+
+       
+    def sendto_chatbox(self, data):
+        self.chatbox.config(state=tk.NORMAL)  # Enable text widget
+        self.chatbox.insert(tk.END, data + b"\n")  # Insert message at the end
+        self.chatbox.see(tk.END)  # Auto-scroll to the latest message
+        self.chatbox.config(state=tk.DISABLED)  # Disable editing again
+
+    # Message must be in bytes
+    def format_message(self, message):
+        formatted_message = self.client.username.encode() + b":" + b" " + message
+        return formatted_message
 
     # Show it on the chatbox 
     
