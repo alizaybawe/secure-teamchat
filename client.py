@@ -154,7 +154,7 @@ class Client():
             try:
                 # Receive encrypted length header
                 encrypted_header = await reader.read(100)  # Fernet 
-                
+                print("Read")
                 if not encrypted_header: # Connection is lost
                     break
                 
@@ -192,8 +192,8 @@ class Client():
                     print(f"Error at decryption: {e}")
 
             except Exception as e: 
-                    print(f"Error receiving message: {e}")
-                    break
+                    print(f"Error receiving message {header} {encrypted_message} {e}")
+
             # Yield control to other tasks
             print("Receive messages finished. Yielding control.")
             await asyncio.sleep(0)

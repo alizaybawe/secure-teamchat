@@ -42,9 +42,13 @@ async def handle_client(reader, writer):
                 if message == b".update":
                     clients[client_address]["last-communication"] = int(time.monotonic())
                     print(f"User heartbeat: {client_address}")
+                    break
+
                 if message == b".clients":
                     print("Displaying current clients list:")
                     print(clients)         
+                    break
+
                 if message == b".exit":
                     clients.pop(client_address, None)
                     print(f"Connection from {client_address} gracefully closed.")
